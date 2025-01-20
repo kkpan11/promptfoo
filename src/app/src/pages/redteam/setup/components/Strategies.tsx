@@ -70,7 +70,20 @@ export default function Strategies({ onNext, onBack }: StrategiesProps) {
         typeof strategy === 'string' ? { id: strategy } : strategy,
       ) as RedteamStrategy[],
   );
-  const [isStateless, setIsStateless] = useState<boolean>(true);
+  const statefulStrategyExists = config.strategies.some(
+    (strategy: RedteamStrategy) =>
+      typeof strategy !== 'string' && strategy.config?.stateless === false,
+  );
+  const statelessStrategyExists = config.strategies.some(
+    (strategy: RedteamStrategy) =>
+      typeof strategy !== 'string' && strategy.config?.stateless === true,
+  );
+  const discrepancyExists = statefulStrategyExists && statelessStrategyExists;
+
+  // Always take preference and set the value of this to false if any configured
+  // strategy is marked as stateful
+  const isStatelessValue = statefulStrategyExists ? false : true;
+
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedConfigStrategy, setSelectedConfigStrategy] = useState<string | null>(null);
   const [strategyConfig, setStrategyConfig] = useState<Record<string, any>>(() => {
@@ -90,21 +103,6 @@ export default function Strategies({ onNext, onBack }: StrategiesProps) {
   useEffect(() => {
     updateConfig('strategies', selectedStrategies);
   }, [selectedStrategies, updateConfig]);
-
-  useEffect(() => {
-    setSelectedStrategies((prev) =>
-      prev.map((strategy) => {
-        const strategyId = getStrategyId(strategy);
-        if (strategyId === 'goat' || strategyId === 'crescendo') {
-          return {
-            id: strategyId,
-            config: { stateless: isStateless },
-          };
-        }
-        return strategy;
-      }),
-    );
-  }, [isStateless]);
 
   const handleStrategyToggle = (strategyId: string) => {
     if (!selectedStrategies.find((strategy) => getStrategyId(strategy) === strategyId)) {
@@ -417,25 +415,46 @@ export default function Strategies({ onNext, onBack }: StrategiesProps) {
               Is the target system stateless? (Does it maintain conversation history?)
             </Typography>
             <RadioGroup
-              value={isStateless}
-              onChange={(e) => setIsStateless(e.target.value === 'true')}
+              value={discrepancyExists ? undefined : isStatelessValue}
+              onChange={(e) => {
+                const isStateless = e.target.value === 'true';
+                const updatedStrategies = config.strategies.map((strategy) => {
+                  if (typeof strategy === 'string') {
+                    return strategy;
+                  }
+
+                  if (MULTI_TURN_STRATEGIES.includes(strategy.id as any)) {
+                    strategy.config = strategy.config || {};
+                    strategy.config.stateless = isStateless;
+                  }
+                  return strategy;
+                });
+                updateConfig('strategies', updatedStrategies);
+              }}
             >
               <FormControlLabel
-                value={true}
+                value="true"
                 control={<Radio />}
                 label="Yes - System is stateless (no conversation history)"
               />
               <FormControlLabel
-                value={false}
+                value="false"
                 control={<Radio />}
                 label="No - System maintains conversation history"
               />
             </RadioGroup>
 
-            {!config.target.config.sessionParser && !isStateless && (
+            {!config.target.config.sessionParser && statefulStrategyExists && (
               <Alert severity="warning">
                 Your system is stateful but you don't have session handling setup. Please return to
                 your Target setup to configure it.
+              </Alert>
+            )}
+            {discrepancyExists && (
+              <Alert severity="error">
+                Your configuration has a mix of stateless and stateful multi-turn strategies. All
+                multi-turn strategies must either be stateless or stateful. Please explicitly select
+                a new value here that will be applied to all strategies.
               </Alert>
             )}
           </FormControl>

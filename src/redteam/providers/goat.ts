@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import dedent from 'dedent';
 import { VERSION } from '../../constants';
 import { renderPrompt } from '../../evaluatorHelpers';
+import { getUserEmail } from '../../globalConfig/accounts';
 import logger from '../../logger';
 import telemetry from '../../telemetry';
 import type { Assertion, AssertionSet, AtomicTestCase } from '../../types';
@@ -79,6 +80,8 @@ export default class GoatProvider implements ApiProvider {
       cached: 0,
     };
 
+    let lastTargetResponse: ProviderResponse | undefined = undefined;
+
     let assertToUse: Assertion | AssertionSet | undefined;
     let graderPassed: boolean | undefined;
     const { getGraderById } = await import('../graders');
@@ -99,6 +102,7 @@ export default class GoatProvider implements ApiProvider {
             prompt: context?.prompt?.raw,
             task: 'goat',
             version: VERSION,
+            email: getUserEmail(),
           }),
           headers: {
             'Content-Type': 'application/json',
@@ -196,6 +200,8 @@ export default class GoatProvider implements ApiProvider {
           totalTokenUsage.numRequests += 1;
         }
 
+        lastTargetResponse = targetResponse;
+
         const grader = assertToUse ? getGraderById(assertToUse.type) : undefined;
         if (test && grader) {
           const { grade } = await grader.getResult(
@@ -233,6 +239,7 @@ export default class GoatProvider implements ApiProvider {
         stopReason: graderPassed === false ? 'Grader failed' : 'Max turns reached',
       },
       tokenUsage: totalTokenUsage,
+      guardrails: lastTargetResponse?.guardrails,
     };
   }
 }

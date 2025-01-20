@@ -5,9 +5,11 @@ import { randomUUID } from 'crypto';
 import { globSync } from 'glob';
 import * as path from 'path';
 import readline from 'readline';
+import type winston from 'winston';
 import { runAssertions, runCompareAssertion } from './assertions';
 import { fetchWithCache, getCache } from './cache';
 import cliState from './cliState';
+import { updateSignalFile } from './database/signal';
 import { getEnvBool, getEnvInt, isCI } from './envars';
 import { renderPrompt, runExtensionHook } from './evaluatorHelpers';
 import logger from './logger';
@@ -16,6 +18,7 @@ import { generateIdFromPrompt } from './models/prompt';
 import { maybeEmitAzureOpenAiWarning } from './providers/azureUtil';
 import { generatePrompts } from './suggestions';
 import telemetry from './telemetry';
+import type { Vars } from './types';
 import {
   type ApiProvider,
   type Assertion,
@@ -223,7 +226,7 @@ class Evaluator {
             test,
 
             // All of these are removed in python and script providers, but every Javascript provider gets them
-            logger,
+            logger: logger as winston.Logger,
             fetchWithCache,
             getCache,
           },
@@ -519,12 +522,12 @@ class Evaluator {
 
     // Prepare vars
     const varNames: Set<string> = new Set();
-    const varsWithSpecialColsRemoved: Record<string, string | string[] | object>[] = [];
+    const varsWithSpecialColsRemoved: Vars[] = [];
     const inputTransformDefault = testSuite?.defaultTest?.options?.transformVars;
     for (const testCase of tests) {
       testCase.vars = { ...testSuite.defaultTest?.vars, ...testCase?.vars };
       if (testCase.vars) {
-        const varWithSpecialColsRemoved: Record<string, string | string[] | object> = {};
+        const varWithSpecialColsRemoved: Vars = {};
         const inputTransformForIndividualTest = testCase.options?.transformVars;
         const inputTransform = inputTransformForIndividualTest || inputTransformDefault;
         if (inputTransform) {
@@ -532,7 +535,7 @@ class Evaluator {
             prompt: {},
             uuid: randomUUID(),
           };
-          const transformedVars = await transform(
+          const transformedVars: Vars = await transform(
             inputTransform,
             testCase.vars,
             transformContext,
@@ -979,6 +982,10 @@ class Evaluator {
       // FIXME(ian): Does this work?  I think redteam is only on the config, not testSuite.
       // isRedteam: Boolean(testSuite.redteam),
     });
+
+    // Update database signal file after all results are written
+    updateSignalFile();
+
     return this.evalRecord;
   }
 }

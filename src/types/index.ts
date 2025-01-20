@@ -365,6 +365,7 @@ export const BaseAssertionTypesSchema = z.enum([
   'equals',
   'factuality',
   'g-eval',
+  'guardrails',
   'icontains-all',
   'icontains-any',
   'icontains',
@@ -523,10 +524,10 @@ const MetadataSchema = z.record(z.string(), z.any());
 export const VarsSchema = z.record(
   z.union([
     z.string(),
-    z.number().transform(String),
-    z.boolean().transform(String),
-    z.array(z.union([z.string(), z.number().transform(String), z.boolean().transform(String)])),
-    z.object({}),
+    z.number(),
+    z.boolean(),
+    z.array(z.union([z.string(), z.number(), z.boolean()])),
+    z.record(z.string(), z.any()),
     z.array(z.any()),
   ]),
 );

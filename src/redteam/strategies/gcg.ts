@@ -1,13 +1,14 @@
 import async from 'async';
 import { SingleBar, Presets } from 'cli-progress';
 import { fetchWithCache } from '../../cache';
+import { getUserEmail } from '../../globalConfig/accounts';
 import logger from '../../logger';
 import { REQUEST_TIMEOUT_MS } from '../../providers/shared';
 import type { TestCase } from '../../types';
 import invariant from '../../util/invariant';
 import { getRemoteGenerationUrl, neverGenerateRemote } from '../remoteGeneration';
 
-const CONCURRENCY = 10;
+export const CONCURRENCY = 10;
 
 async function generateGcgPrompts(
   testCases: TestCase[],
@@ -40,6 +41,7 @@ async function generateGcgPrompts(
         task: 'gcg',
         query: testCase.vars[injectVar],
         ...(config.n && { n: config.n }),
+        email: getUserEmail(),
       };
 
       const { data } = await fetchWithCache(
