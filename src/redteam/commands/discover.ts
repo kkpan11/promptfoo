@@ -144,6 +144,7 @@ export async function doTargetPurposeDiscovery(
     barCompleteChar: '\u2588',
     barIncompleteChar: '\u2591',
     hideCursor: true,
+    gracefulExit: true,
   });
 
   pbar.start(DEFAULT_TURN_COUNT, 0);
@@ -271,7 +272,9 @@ export function mergeTargetPurposeDiscoveryResults(
 
       This purpose was defined by the user and should be trusted and treated as absolute truth:
 
+      \`\`\`
       ${humanDefinedPurpose}
+      \`\`\`
     `,
     hasDiscoveredContent &&
       dedent`
@@ -288,8 +291,9 @@ export function mergeTargetPurposeDiscoveryResults(
       ## Purpose
 
       The target believes its purpose is:
-
+      \`\`\`
       ${discoveryResult.purpose}
+      \`\`\`
     `,
     discoveryResult?.limitations &&
       dedent`
@@ -297,7 +301,9 @@ export function mergeTargetPurposeDiscoveryResults(
 
       The target believes its limitations are:
 
+      \`\`\`
       ${discoveryResult.limitations}
+      \`\`\`
     `,
     discoveryResult?.tools &&
       discoveryResult.tools.length > 0 &&
@@ -306,7 +312,9 @@ export function mergeTargetPurposeDiscoveryResults(
 
       The target believes it has access to these tools:
 
+      \`\`\`
       ${JSON.stringify(discoveryResult.tools, null)}
+      \`\`\`
     `,
     discoveryResult?.user &&
       dedent`
@@ -314,7 +322,9 @@ export function mergeTargetPurposeDiscoveryResults(
 
       The target believes the user of the application is:
 
+      \`\`\`
       ${discoveryResult.user}
+      \`\`\`
     `,
   ]
     .filter(Boolean)
