@@ -657,6 +657,7 @@ export async function synthesize({
     progressBar = new cliProgress.SingleBar(
       {
         format: 'Generating | {bar} | {percentage}% | {value}/{total} | {task}',
+        gracefulExit: true,
       },
       cliProgress.Presets.shades_classic,
     );
@@ -719,7 +720,8 @@ export async function synthesize({
           metadata: {
             pluginId: plugin.id,
             pluginConfig: resolvePluginConfig(plugin.config),
-            severity: getPluginSeverity(plugin.id, resolvePluginConfig(plugin.config)),
+            severity:
+              plugin.severity ?? getPluginSeverity(plugin.id, resolvePluginConfig(plugin.config)),
             ...(t?.metadata || {}),
           },
         }));
@@ -764,7 +766,8 @@ export async function synthesize({
           metadata: {
             pluginId: plugin.id,
             pluginConfig: resolvePluginConfig(plugin.config),
-            severity: getPluginSeverity(plugin.id, resolvePluginConfig(plugin.config)),
+            severity:
+              plugin.severity || getPluginSeverity(plugin.id, resolvePluginConfig(plugin.config)),
             ...(t.metadata || {}),
           },
         }));
