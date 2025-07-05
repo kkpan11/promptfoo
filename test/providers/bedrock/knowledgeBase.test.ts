@@ -38,10 +38,26 @@ describe('AwsBedrockKnowledgeBaseProvider', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete process.env.AWS_BEDROCK_MAX_RETRIES;
+    delete process.env.HTTPS_PROXY;
+    delete process.env.https_proxy;
+    delete process.env.HTTP_PROXY;
+    delete process.env.http_proxy;
+    delete process.env.npm_config_https_proxy;
+    delete process.env.npm_config_http_proxy;
+    delete process.env.npm_config_proxy;
+    delete process.env.all_proxy;
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+    delete process.env.HTTPS_PROXY;
+    delete process.env.https_proxy;
+    delete process.env.HTTP_PROXY;
+    delete process.env.http_proxy;
+    delete process.env.npm_config_https_proxy;
+    delete process.env.npm_config_http_proxy;
+    delete process.env.npm_config_proxy;
+    delete process.env.all_proxy;
   });
 
   it('should throw an error if knowledgeBaseId is not provided', () => {
@@ -188,8 +204,7 @@ describe('AwsBedrockKnowledgeBaseProvider', () => {
         type: 'KNOWLEDGE_BASE',
         knowledgeBaseConfiguration: {
           knowledgeBaseId: 'kb-123',
-          modelArn:
-            'arn:aws:bedrock:us-east-1:aws:foundation-model/us.anthropic.claude-3-7-sonnet-20241022-v2:0',
+          modelArn: 'us.anthropic.claude-3-7-sonnet-20241022-v2:0',
         },
       },
     };
@@ -282,7 +297,7 @@ describe('AwsBedrockKnowledgeBaseProvider', () => {
         type: 'KNOWLEDGE_BASE',
         knowledgeBaseConfiguration: {
           knowledgeBaseId: 'kb-123',
-          modelArn: 'arn:aws:bedrock:us-east-1:aws:foundation-model/amazon.nova-lite-v1:0',
+          modelArn: 'arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0',
         },
       },
     };

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as cache from '../../../src/cache';
 import { AIStudioChatProvider } from '../../../src/providers/google/ai.studio';
 import * as util from '../../../src/providers/google/util';
+import { getNunjucksEngineForFilePath } from '../../../src/util/file';
 import * as templates from '../../../src/util/templates';
 
 jest.mock('../../../src/cache', () => ({
@@ -20,10 +21,25 @@ jest.mock('../../../src/util/templates', () => ({
 }));
 
 jest.mock('../../../src/util/file', () => ({
-  ...jest.requireActual('../../../src/util/file'),
-  getNunjucksEngineForFilePath: jest.fn(() => ({
-    renderString: jest.fn((str) => str),
-  })),
+  getNunjucksEngineForFilePath: jest.fn(),
+  maybeLoadFromExternalFile: jest.fn((input) => {
+    if (typeof input === 'string' && input.startsWith('file://')) {
+      // Simulate loading from file
+      const fs = require('fs');
+      const path = require('path');
+      const filePath = path.resolve(input.slice('file://'.length));
+
+      if (fs.existsSync(filePath)) {
+        const contents = fs.readFileSync(filePath, 'utf8');
+        if (filePath.endsWith('.json')) {
+          return JSON.parse(contents);
+        }
+        return contents;
+      }
+      throw new Error(`File does not exist: ${filePath}`);
+    }
+    return input;
+  }),
 }));
 
 jest.mock('glob', () => ({
@@ -41,6 +57,18 @@ describe('AIStudioChatProvider', () => {
   let provider: AIStudioChatProvider;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(templates.getNunjucksEngine).mockReturnValue({
+      renderString: jest.fn((str) => str),
+    } as any);
+    jest.mocked(fs.existsSync).mockReset();
+    jest.mocked(fs.readFileSync).mockReset();
+    jest.mocked(fs.writeFileSync).mockReset();
+    jest.mocked(fs.statSync).mockReset();
+    jest.mocked(getNunjucksEngineForFilePath).mockReturnValue({
+      renderString: jest.fn((str) => str),
+    } as any);
+
     provider = new AIStudioChatProvider('gemini-pro', {
       config: {
         temperature: 0.7,
@@ -49,7 +77,6 @@ describe('AIStudioChatProvider', () => {
         topK: 40,
       },
     });
-    jest.clearAllMocks();
   });
 
   describe('constructor and configuration', () => {
@@ -118,6 +145,9 @@ describe('AIStudioChatProvider', () => {
     });
 
     it('should prioritize apiHost over apiBaseUrl', () => {
+      jest.mocked(templates.getNunjucksEngine).mockReturnValue({
+        renderString: jest.fn((str) => `rendered-${str}`),
+      } as any);
       const provider = new AIStudioChatProvider('gemini-pro', {
         config: {
           apiHost: 'host.googleapis.com',
@@ -221,6 +251,17 @@ describe('AIStudioChatProvider', () => {
 
   describe('non-Gemini models', () => {
     beforeEach(() => {
+      jest.clearAllMocks();
+      jest.mocked(templates.getNunjucksEngine).mockReturnValue({
+        renderString: jest.fn((str) => str),
+      } as any);
+      jest.mocked(fs.existsSync).mockReset();
+      jest.mocked(fs.readFileSync).mockReset();
+      jest.mocked(fs.writeFileSync).mockReset();
+      jest.mocked(fs.statSync).mockReset();
+      jest.mocked(getNunjucksEngineForFilePath).mockReturnValue({
+        renderString: jest.fn((str) => str),
+      } as any);
       provider = new AIStudioChatProvider('palm2', {
         config: {
           temperature: 0.7,
@@ -270,7 +311,7 @@ describe('AIStudioChatProvider', () => {
         }),
         expect.any(Number),
         'json',
-        false,
+        undefined,
       );
     });
   });
@@ -656,6 +697,9 @@ describe('AIStudioChatProvider', () => {
     });
 
     it('should handle function calling configuration', async () => {
+      jest.mocked(templates.getNunjucksEngine).mockReturnValue({
+        renderString: jest.fn((str) => `rendered-${str}`),
+      } as any);
       const tools = [
         {
           functionDeclarations: [
@@ -1124,6 +1168,109 @@ describe('AIStudioChatProvider', () => {
         300000,
         'json',
         false,
+      );
+    });
+
+    it('should pass custom headers to the Gemini API', async () => {
+      provider = new AIStudioChatProvider('gemini-pro', {
+        config: {
+          apiKey: 'test-key',
+          headers: {
+            'X-Custom-Header1': 'custom-value1',
+            'X-Custom-Header2': 'custom-value2',
+            'X-Custom-Header3': 'custom-value3',
+          },
+        },
+      });
+
+      const mockResponse = {
+        data: {
+          candidates: [{ content: { parts: [{ text: 'response text' }] } }],
+          usageMetadata: {
+            promptTokenCount: 10,
+            candidatesTokenCount: 5,
+            totalTokenCount: 15,
+          },
+        },
+        cached: false,
+      };
+
+      jest.mocked(cache.fetchWithCache).mockResolvedValue(mockResponse as any);
+      jest.mocked(util.maybeCoerceToGeminiFormat).mockReturnValue({
+        contents: [{ role: 'user', parts: [{ text: 'test prompt' }] }],
+        coerced: false,
+        systemInstruction: undefined,
+      });
+
+      await provider.callGemini('test prompt');
+
+      expect(cache.fetchWithCache).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'X-Custom-Header1': 'custom-value1',
+            'X-Custom-Header2': 'custom-value2',
+            'X-Custom-Header3': 'custom-value3',
+          }),
+        }),
+        expect.any(Number),
+        'json',
+        false,
+      );
+    });
+
+    it('should load system instructions from file', async () => {
+      const mockSystemInstruction = 'You are a helpful assistant from a file.';
+
+      // Mock file system operations
+      jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockReturnValue(mockSystemInstruction);
+
+      provider = new AIStudioChatProvider('gemini-pro', {
+        config: {
+          apiKey: 'test-key',
+          systemInstruction: 'file://system-instruction.txt',
+        },
+      });
+
+      const mockResponse = {
+        data: {
+          candidates: [{ content: { parts: [{ text: 'response text' }] } }],
+          usageMetadata: {
+            promptTokenCount: 10,
+            candidatesTokenCount: 5,
+            totalTokenCount: 15,
+          },
+        },
+        cached: false,
+      };
+
+      jest.mocked(cache.fetchWithCache).mockResolvedValue(mockResponse as any);
+      jest.mocked(util.maybeCoerceToGeminiFormat).mockReturnValue({
+        contents: [{ role: 'user', parts: [{ text: 'test prompt' }] }],
+        coerced: false,
+        systemInstruction: undefined,
+      });
+
+      await provider.callGemini('test prompt');
+
+      expect(cache.fetchWithCache).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: expect.stringContaining(
+            `"system_instruction":{"parts":[{"text":"${mockSystemInstruction}"}]}`,
+          ),
+        }),
+        expect.any(Number),
+        'json',
+        false,
+      );
+
+      // Verify file was read
+      expect(fs.readFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('system-instruction.txt'),
+        'utf8',
       );
     });
   });
